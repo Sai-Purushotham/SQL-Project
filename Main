@@ -1,0 +1,409 @@
+-- ============================================================================
+-- SMART INVENTORY & SALES MANAGEMENT SYSTEM
+-- (Full Project - Tables, Views, Triggers, Procedures, Sample Data, Verification)
+-- ============================================================================
+
+DROP DATABASE IF EXISTS inventory_sales_system;
+CREATE DATABASE inventory_sales_system;
+USE inventory_sales_system;
+
+CREATE TABLE suppliers (
+    supplier_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    phone VARCHAR(15) NOT NULL,
+    email VARCHAR(100),
+    city VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_phone_length CHECK (LENGTH(phone) >= 10)
+);
+
+CREATE TABLE products (
+    product_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(150) NOT NULL,
+    price DECIMAL(10, 2) NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    supplier_id INT NOT NULL,
+    category VARCHAR(50),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT chk_price CHECK (price > 0),
+    CONSTRAINT chk_stock CHECK (stock >= 0),
+    INDEX idx_supplier_id (supplier_id),
+    INDEX idx_product_name (name),
+    INDEX idx_category (category)
+);
+
+CREATE TABLE customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(15),
+    city VARCHAR(50),
+    country VARCHAR(50),
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_customer_email CHECK (email LIKE '%@%.%'),
+    INDEX idx_customer_email (email),
+    INDEX idx_customer_name (name)
+);
+
+CREATE TABLE sales (
+    sale_id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    sale_date DATE NOT NULL,
+    total_amount DECIMAL(12, 2) DEFAULT 0.00,
+    payment_status ENUM('Pending', 'Completed', 'Cancelled') DEFAULT 'Pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT chk_total_amount CHECK (total_amount >= 0),
+    INDEX idx_customer_id (customer_id),
+    INDEX idx_sale_date (sale_date),
+    INDEX idx_sale_date_id (sale_date, sale_id)
+);
+
+CREATE TABLE sales_items (
+    item_id INT PRIMARY KEY AUTO_INCREMENT,
+    sale_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10, 2) NOT NULL,
+    line_total DECIMAL(12, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sale_id) REFERENCES sales(sale_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT chk_quantity CHECK (quantity > 0),
+    CONSTRAINT chk_unit_price CHECK (unit_price > 0),
+    CONSTRAINT chk_line_total CHECK (line_total > 0),
+    INDEX idx_sale_id (sale_id),
+    INDEX idx_product_id (product_id)
+);
+
+CREATE TABLE inventory_logs (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    product_id INT NOT NULL,
+    old_stock INT NOT NULL,
+    new_stock INT NOT NULL,
+    change_type ENUM('Purchase', 'Sale', 'Adjustment', 'Return') NOT NULL,
+    quantity_changed INT NOT NULL,
+    change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_action VARCHAR(50),
+    FOREIGN KEY (product_id) REFERENCES products(product_id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    INDEX idx_product_id (product_id),
+    INDEX idx_change_date (change_date),
+    INDEX idx_product_date (product_id, change_date)
+);
+
+CREATE OR REPLACE VIEW v_product_inventory_status AS
+SELECT p.product_id, p.name AS product_name, p.price, p.stock,
+    s.name AS supplier_name, p.category,
+    CASE WHEN p.stock = 0 THEN 'Out of Stock'
+         WHEN p.stock < 10 THEN 'Low Stock'
+         WHEN p.stock < 50 THEN 'Medium Stock'
+         ELSE 'Healthy Stock' END AS stock_status
+FROM products p LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id;
+
+CREATE OR REPLACE VIEW v_sales_summary AS
+SELECT s.sale_id, s.customer_id, c.name AS customer_name, c.email,
+    s.sale_date, s.total_amount, s.payment_status,
+    COUNT(si.item_id) AS total_items, COUNT(DISTINCT si.product_id) AS unique_products
+FROM sales s
+LEFT JOIN customers c ON s.customer_id = c.customer_id
+LEFT JOIN sales_items si ON s.sale_id = si.sale_id
+GROUP BY s.sale_id, s.customer_id, c.name, c.email, s.sale_date, s.total_amount, s.payment_status;
+
+CREATE OR REPLACE VIEW v_top_selling_products AS
+SELECT p.product_id, p.name, p.price,
+    SUM(si.quantity) AS total_quantity_sold,
+    SUM(si.line_total) AS total_revenue,
+    COUNT(DISTINCT s.sale_id) AS number_of_sales,
+    AVG(si.quantity) AS avg_quantity_per_sale
+FROM products p
+LEFT JOIN sales_items si ON p.product_id = si.product_id
+LEFT JOIN sales s ON si.sale_id = s.sale_id
+WHERE s.payment_status = 'Completed'
+GROUP BY p.product_id, p.name, p.price
+ORDER BY total_revenue DESC;
+
+CREATE OR REPLACE VIEW v_customer_purchase_history AS
+SELECT c.customer_id, c.name, c.email,
+    COUNT(DISTINCT s.sale_id) AS total_purchases,
+    COUNT(DISTINCT si.product_id) AS unique_products_bought,
+    SUM(si.quantity) AS total_quantity_purchased,
+    SUM(s.total_amount) AS total_spent,
+    MAX(s.sale_date) AS last_purchase_date
+FROM customers c
+LEFT JOIN sales s ON c.customer_id = s.customer_id
+LEFT JOIN sales_items si ON s.sale_id = si.sale_id
+WHERE s.payment_status = 'Completed'
+GROUP BY c.customer_id, c.name, c.email;
+
+CREATE OR REPLACE VIEW v_monthly_revenue_report AS
+SELECT YEAR(s.sale_date) AS year, MONTH(s.sale_date) AS month,
+    DATE_FORMAT(s.sale_date, '%Y-%m') AS month_year,
+    COUNT(DISTINCT s.sale_id) AS total_sales,
+    SUM(s.total_amount) AS total_revenue,
+    AVG(s.total_amount) AS avg_sale_value,
+    COUNT(DISTINCT s.customer_id) AS unique_customers
+FROM sales s
+WHERE s.payment_status = 'Completed'
+GROUP BY YEAR(s.sale_date), MONTH(s.sale_date), DATE_FORMAT(s.sale_date, '%Y-%m');
+
+CREATE INDEX idx_sales_items_sale_product ON sales_items(sale_id, product_id);
+CREATE INDEX idx_inventory_logs_product_date ON inventory_logs(product_id, change_date);
+CREATE INDEX idx_products_name_category ON products(name, category);
+CREATE INDEX idx_customers_city ON customers(city);
+
+DELIMITER $$
+CREATE TRIGGER trg_log_stock_changes
+AFTER UPDATE ON products
+FOR EACH ROW
+BEGIN
+    IF OLD.stock != NEW.stock THEN
+        INSERT INTO inventory_logs (product_id, old_stock, new_stock, change_type, quantity_changed, user_action)
+        VALUES (NEW.product_id, OLD.stock, NEW.stock, 'Adjustment', (NEW.stock - OLD.stock), 'Manual Update');
+    END IF;
+END$$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER trg_prevent_product_deletion
+BEFORE DELETE ON products
+FOR EACH ROW
+BEGIN
+    DECLARE sale_count INT;
+    SELECT COUNT(*) INTO sale_count FROM sales_items WHERE product_id = OLD.product_id;
+    IF sale_count > 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot delete product with existing sales';
+    END IF;
+END$$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER trg_update_sales_total_insert
+AFTER INSERT ON sales_items
+FOR EACH ROW
+BEGIN
+    UPDATE sales 
+    SET total_amount = (SELECT COALESCE(SUM(line_total), 0) FROM sales_items WHERE sale_id = NEW.sale_id)
+    WHERE sale_id = NEW.sale_id;
+END$$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER trg_update_sales_total_update
+AFTER UPDATE ON sales_items
+FOR EACH ROW
+BEGIN
+    UPDATE sales 
+    SET total_amount = (SELECT COALESCE(SUM(line_total), 0) FROM sales_items WHERE sale_id = NEW.sale_id)
+    WHERE sale_id = NEW.sale_id;
+END$$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER trg_update_sales_total_delete
+AFTER DELETE ON sales_items
+FOR EACH ROW
+BEGIN
+    UPDATE sales 
+    SET total_amount = (SELECT COALESCE(SUM(line_total), 0) FROM sales_items WHERE sale_id = OLD.sale_id)
+    WHERE sale_id = OLD.sale_id;
+END$$
+DELIMITER ;
+
+DELIMITER $$
+CREATE PROCEDURE sp_make_sale(IN p_customer_id INT, IN p_sale_date DATE, OUT p_sale_id INT, OUT p_status VARCHAR(100))
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_status = 'Error: Transaction rolled back';
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    IF NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = p_customer_id) THEN
+        SET p_status = 'Error: Customer not found';
+        ROLLBACK;
+    ELSE
+        INSERT INTO sales (customer_id, sale_date, payment_status)
+        VALUES (p_customer_id, p_sale_date, 'Completed');
+        SET p_sale_id = LAST_INSERT_ID();
+        SET p_status = 'Sale created successfully';
+        COMMIT;
+    END IF;
+END$$
+
+CREATE PROCEDURE sp_add_sale_item(IN p_sale_id INT, IN p_product_id INT, IN p_quantity INT, OUT p_status VARCHAR(100))
+BEGIN
+    DECLARE v_current_stock INT;
+    DECLARE v_unit_price DECIMAL(10, 2);
+    DECLARE v_line_total DECIMAL(12, 2);
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_status = 'Error: Transaction rolled back';
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    SELECT stock, price INTO v_current_stock, v_unit_price FROM products WHERE product_id = p_product_id FOR UPDATE;
+    IF v_current_stock IS NULL THEN
+        SET p_status = 'Error: Product not found';
+        ROLLBACK;
+    ELSEIF v_current_stock < p_quantity THEN
+        SET p_status = CONCAT('Error: Insufficient stock. Available: ', v_current_stock);
+        ROLLBACK;
+    ELSE
+        SET v_line_total = v_unit_price * p_quantity;
+        INSERT INTO sales_items (sale_id, product_id, quantity, unit_price, line_total)
+        VALUES (p_sale_id, p_product_id, p_quantity, v_unit_price, v_line_total);
+        UPDATE products SET stock = stock - p_quantity WHERE product_id = p_product_id;
+        INSERT INTO inventory_logs (product_id, old_stock, new_stock, change_type, quantity_changed, user_action)
+        VALUES (p_product_id, v_current_stock, v_current_stock - p_quantity, 'Sale', p_quantity, 'Sale Transaction');
+        SET p_status = 'Item added to sale successfully';
+        COMMIT;
+    END IF;
+END$$
+
+CREATE PROCEDURE sp_get_monthly_revenue_report(IN p_year INT)
+BEGIN
+    SELECT MONTH(sale_date) AS month, DATE_FORMAT(sale_date, '%M') AS month_name,
+        COUNT(DISTINCT sale_id) AS total_sales, SUM(total_amount) AS total_revenue,
+        AVG(total_amount) AS avg_sale_value, COUNT(DISTINCT customer_id) AS unique_customers
+    FROM sales
+    WHERE YEAR(sale_date) = p_year AND payment_status = 'Completed'
+    GROUP BY MONTH(sale_date), DATE_FORMAT(sale_date, '%M')
+    ORDER BY MONTH(sale_date);
+END$$
+
+CREATE PROCEDURE sp_restock_product(IN p_product_id INT, IN p_quantity INT, OUT p_status VARCHAR(100))
+BEGIN
+    DECLARE v_old_stock INT;
+    DECLARE v_new_stock INT;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_status = 'Error: Restock failed';
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    SELECT stock INTO v_old_stock FROM products WHERE product_id = p_product_id;
+    IF v_old_stock IS NULL THEN
+        SET p_status = 'Error: Product not found';
+        ROLLBACK;
+    ELSE
+        UPDATE products SET stock = stock + p_quantity WHERE product_id = p_product_id;
+        SET v_new_stock = v_old_stock + p_quantity;
+        INSERT INTO inventory_logs (product_id, old_stock, new_stock, change_type, quantity_changed, user_action)
+        VALUES (p_product_id, v_old_stock, v_new_stock, 'Purchase', p_quantity, 'Restock from Supplier');
+        SET p_status = 'Product restocked successfully';
+        COMMIT;
+    END IF;
+END$$
+
+CREATE PROCEDURE sp_get_top_selling_products(IN p_limit INT)
+BEGIN
+    SELECT p.product_id, p.name, p.price,
+        COALESCE(SUM(si.quantity), 0) AS total_quantity_sold,
+        COALESCE(SUM(si.line_total), 0) AS total_revenue,
+        COUNT(DISTINCT s.sale_id) AS number_of_sales
+    FROM products p
+    LEFT JOIN sales_items si ON p.product_id = si.product_id
+    LEFT JOIN sales s ON si.sale_id = s.sale_id AND s.payment_status = 'Completed'
+    GROUP BY p.product_id, p.name, p.price
+    ORDER BY total_revenue DESC
+    LIMIT p_limit;
+END$$
+
+CREATE PROCEDURE sp_cancel_sale(IN p_sale_id INT, OUT p_status VARCHAR(100))
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_product_id INT;
+    DECLARE v_quantity INT;
+    DECLARE v_old_stock INT;
+    DECLARE cur_items CURSOR FOR SELECT product_id, quantity FROM sales_items WHERE sale_id = p_sale_id;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        SET p_status = 'Error: Sale cancellation rolled back';
+        ROLLBACK;
+    END;
+    START TRANSACTION;
+    OPEN cur_items;
+    read_loop: LOOP
+        FETCH cur_items INTO v_product_id, v_quantity;
+        IF done THEN LEAVE read_loop; END IF;
+        SELECT stock INTO v_old_stock FROM products WHERE product_id = v_product_id;
+        UPDATE products SET stock = stock + v_quantity WHERE product_id = v_product_id;
+        INSERT INTO inventory_logs (product_id, old_stock, new_stock, change_type, quantity_changed, user_action)
+        VALUES (v_product_id, v_old_stock, v_old_stock + v_quantity, 'Return', v_quantity, 'Sale Cancellation');
+    END LOOP;
+    CLOSE cur_items;
+    UPDATE sales SET payment_status = 'Cancelled' WHERE sale_id = p_sale_id;
+    SET p_status = 'Sale cancelled successfully and stock restored';
+    COMMIT;
+END$$
+DELIMITER ;
+
+INSERT INTO suppliers (name, phone, email, city) VALUES
+('TechSupply Inc', '1234567890', 'contact@techsupply.com', 'New York'),
+('Global Traders', '0987654321', 'info@globaltraders.com', 'Los Angeles'),
+('Premium Goods Co', '5555555555', 'sales@premiumgoods.com', 'Chicago'),
+('FastShip Logistics', '4444444444', 'support@fastship.com', 'Houston'),
+('Quality Products Ltd', '3333333333', 'hello@qualityproducts.com', 'Phoenix');
+
+INSERT INTO products (name, price, stock, supplier_id, category, description) VALUES
+('Laptop Pro 15', 1299.99, 45, 1, 'Electronics', 'High-performance laptop with 15-inch display'),
+('Wireless Mouse', 29.99, 150, 1, 'Electronics', 'Ergonomic wireless mouse with USB receiver'),
+('USB-C Cable', 12.99, 300, 2, 'Accessories', 'Durable 2-meter USB-C charging cable'),
+('Mechanical Keyboard', 89.99, 80, 1, 'Electronics', 'RGB mechanical gaming keyboard'),
+('Monitor Stand', 49.99, 120, 3, 'Accessories', 'Adjustable monitor stand for 24-32 inch screens'),
+('Phone Case', 19.99, 200, 4, 'Accessories', 'Premium silicone phone case'),
+('Screen Protector', 9.99, 500, 2, 'Accessories', 'Tempered glass screen protector'),
+('Webcam HD', 59.99, 90, 1, 'Electronics', '1080p HD webcam for streaming'),
+('Headphones', 79.99, 110, 5, 'Electronics', 'Noise-cancelling over-ear headphones'),
+('Desk Lamp', 39.99, 75, 3, 'Accessories', 'LED desk lamp with adjustable brightness');
+
+INSERT INTO customers (name, email, phone, city, country) VALUES
+('John Doe', 'john@example.com', '2123456789', 'New York', 'USA'),
+('Jane Smith', 'jane@example.com', '2129876543', 'Los Angeles', 'USA'),
+('Robert Johnson', 'robert@example.com', '3125551234', 'Chicago', 'USA'),
+('Mary Williams', 'mary@example.com', '7135559876', 'Houston', 'USA'),
+('Michael Brown', 'michael@example.com', '6025552345', 'Phoenix', 'USA'),
+('Sarah Davis', 'sarah@example.com', '2023456789', 'Washington', 'USA'),
+('David Martinez', 'david@example.com', '2155559999', 'Philadelphia', 'USA'),
+('Emily Wilson', 'emily@example.com', '7025551111', 'Las Vegas', 'USA');
+
+INSERT INTO sales (customer_id, sale_date, payment_status) VALUES
+(1, '2025-11-20', 'Completed'),
+(2, '2025-11-19', 'Completed'),
+(3, '2025-11-18', 'Completed'),
+(4, '2025-11-17', 'Completed'),
+(5, '2025-11-16', 'Completed'),
+(6, '2025-11-15', 'Pending'),
+(7, '2025-11-14', 'Completed'),
+(1, '2025-11-20', 'Completed');
+
+INSERT INTO sales_items (sale_id, product_id, quantity, unit_price, line_total) VALUES
+(1, 1, 1, 1299.99, 1299.99),
+(1, 2, 2, 29.99, 59.98),
+(2, 3, 5, 12.99, 64.95),
+(2, 4, 1, 89.99, 89.99),
+(3, 5, 2, 49.99, 99.98),
+(3, 6, 3, 19.99, 59.97),
+(4, 7, 10, 9.99, 99.90),
+(4, 8, 1, 59.99, 59.99),
+(5, 9, 2, 79.99, 159.98),
+(5, 10, 1, 39.99, 39.99),
+(6, 1, 1, 1299.99, 1299.99),
+(6, 2, 1, 29.99, 29.99),
+(7, 3, 2, 12.99, 25.98),
+(8, 4, 3, 89.99, 269.97);
+
+SELECT 'suppliers' AS table_name, COUNT(*) AS row_count FROM suppliers
+UNION ALL SELECT 'products', COUNT(*) FROM products
+UNION ALL SELECT 'customers', COUNT(*) FROM customers
+UNION ALL SELECT 'sales', COUNT(*) FROM sales
+UNION ALL SELECT 'sales_items', COUNT(*) FROM sales_items
+UNION ALL SELECT 'inventory_logs', COUNT(*) FROM inventory_logs;
+
+SELECT '✅ Database Created Successfully!' AS Status;
+SELECT '✅ Tables, Views, Procedures, and Data Loaded' AS Status;
+SELECT '🎉 PROJECT COMPLETE - READY TO USE!' AS Status;
