@@ -112,7 +112,7 @@ MIT — use, learn, extend freely
 
 ## 👤 Author
 
-Created by [purushotham], November 2025  
+Created by purushotham
 Add questions/issues through GitHub!
 
 ---
