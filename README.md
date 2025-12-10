@@ -1,4 +1,4 @@
-# 🏢 Inventory & Sales Management System
+[README.md](https://github.com/user-attachments/files/24079818/README.md)# 🏢 Inventory & Sales Management System
 
 A simple database system to manage suppliers, products, customers, and sales with automatic tracking.
 
@@ -67,9 +67,9 @@ Execute them in order 01 → 09 in MySQL Workbench or phpMyAdmin.
 All 6 tables connected with relationships:
 
 ```
-suppliers → products → sales_items ← sales ← customers
-                          ↓
-                     inventory_logs
+[Uploadin<img width="1152" height="671" alt="Untitled Diagram drawio (1)" src="https://github.com/user-attachments/assets/fc430ee1-f7f9-4a64-9116-46d2ebda9f40" />
+g README.md…]()
+
 ```
 
 **Relationships:**
