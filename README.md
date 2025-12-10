@@ -122,6 +122,9 @@ All 5 suppliers displayed with phone, email, city
 <img width="1912" height="956" alt="image" src="https://github.com/user-attachments/assets/8efcd85c-59d3-4530-8bf7-e1087057a4fd" />
 
 
+### 5. Process of implementing ERD in Draw.io
+
+<img width="1907" height="823" alt="image" src="https://github.com/user-attachments/assets/81a607bd-85d8-43a2-b170-39382721d03d" />
 
 
 ---
