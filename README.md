@@ -1,4 +1,5 @@
-[README.md](https://github.com/user-attachments/files/24079818/README.md)# 🏢 Inventory & Sales Management System
+
+# 🏢 Inventory & Sales Management System
 
 A simple database system to manage suppliers, products, customers, and sales with automatic tracking.
 
