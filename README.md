@@ -67,7 +67,7 @@ Execute them in order 01 → 09 in MySQL Workbench or phpMyAdmin.
 All 6 tables connected with relationships:
 
 ```
-[Uploadin<img width="1152" height="671" alt="Untitled Diagram drawio (1)" src="https://github.com/user-attachments/assets/fc430ee1-f7f9-4a64-9116-46d2ebda9f40" />
+<img width="1152" height="671" alt="Untitled Diagram drawio (1)" src="https://github.com/user-attachments/assets/4ddd4f50-93bc-424b-a234-32b4b87d9085" />
 
 ```
 
