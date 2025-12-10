@@ -86,8 +86,15 @@ All 6 tables connected with relationships:
 ✅ All tables loaded
 ✅ Verification complete
 
+<img width="1919" height="958" alt="image" src="https://github.com/user-attachments/assets/d0917809-1463-47b9-981b-0f12a0eedfb9" />
+
+
 ### 2. phpMyAdmin - Sales Items Table
 Shows table structure with columns, data types, and indexes
+
+
+<img width="1901" height="872" alt="image" src="https://github.com/user-attachments/assets/22a0929f-8e01-4acc-a7c9-ea011ff20eec" />
+
 
 ### 3. phpMyAdmin - Products Data
 All 10 products displayed:
@@ -101,12 +108,20 @@ All 10 products displayed:
 - Webcam HD ($59.99)
 - Headphones ($79.99)
 - Desk Lamp ($39.99)
+- 
+
+  <img width="1898" height="972" alt="image" src="https://github.com/user-attachments/assets/dd0cdadc-b8cb-437e-9b2b-16d7d92105b8" />
+
+
 
 ### 4. MySQL Workbench - Suppliers Data
 All 5 suppliers displayed with phone, email, city
 
-### 5. ERD Diagram
-Complete visual showing all tables and relationships
+
+<img width="1912" height="956" alt="image" src="https://github.com/user-attachments/assets/8efcd85c-59d3-4530-8bf7-e1087057a4fd" />
+
+
+
 
 ---
 
