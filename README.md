@@ -68,7 +68,6 @@ All 6 tables connected with relationships:
 
 ```
 [Uploadin<img width="1152" height="671" alt="Untitled Diagram drawio (1)" src="https://github.com/user-attachments/assets/fc430ee1-f7f9-4a64-9116-46d2ebda9f40" />
-g README.md…]()
 
 ```
 
